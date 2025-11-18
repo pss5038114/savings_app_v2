@@ -2,7 +2,7 @@
   "name": "일일 예산 대시보드",
   "short_name": "예산 대시보드",
   "description": "가볍고 강력한 개인 예산 및 지출 관리 앱",
-  "start_url": "stable_version_5.html",
+  "start_url": "/savings_app_v2/stable_version_5.html", // 경로를 명확히 지정
   "display": "standalone",
   "background_color": "#121212",
   "theme_color": "#e0e0e0",
@@ -18,4 +18,5 @@
       "type": "image/png"
     }
   ]
+
 }
