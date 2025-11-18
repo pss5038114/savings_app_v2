@@ -1,13 +1,14 @@
 // Service Worker 파일 (service-worker.js)
 
-const CACHE_NAME = 'budget-dashboard-v1';
+const CACHE_NAME = 'budget-dashboard-v2'; // 캐시를 새로고치기 위해 버전업
+const REPO_PATH = '/savings_app_v2'; // <--- 저장소 이름을 여기에 추가
+
 const urlsToCache = [
-    'stable_version_5.html',
-    'manifest.json',
+    `${REPO_PATH}/stable_version_5.html`,
+    `${REPO_PATH}/manifest.json`,
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css',
-    // 주의: icons 폴더에 icon-192x192.png, icon-512x512.png 파일이 있다고 가정합니다.
-    '/icons/icon-192x192.png',
-    '/icons/icon-512x512.png'
+    `${REPO_PATH}/icons/icon-192x192.png`, // 경로 수정
+    `${REPO_PATH}/icons/icon-512x512.png`  // 경로 수정
 ];
 
 // 설치 이벤트: 캐시 초기화 및 필수 파일 저장
@@ -62,4 +63,5 @@ self.addEventListener('activate', event => {
     );
     // Service Worker가 클라이언트를 제어하도록 설정
     self.clients.claim(); 
+
 });
