@@ -1,14 +1,14 @@
-// Service Worker 파일 (service-worker.js)
+// 🔽 수정: 캐시 이름 (버전)을 반드시 올려야 합니다.
+const CACHE_NAME = 'budget-dashboard-v4'; 
+const REPO_PATH = '/savings_app_v2'; // 저장소 경로 변수 선언
 
-const CACHE_NAME = 'budget-dashboard-v2'; // 캐시를 새로고치기 위해 버전업
-const REPO_PATH = '/savings_app_v2'; // <--- 저장소 이름을 여기에 추가
-
+// 🔽 수정: 모든 로컬 파일 경로에 REPO_PATH 변수 적용
 const urlsToCache = [
     `${REPO_PATH}/stable_version_5.html`,
     `${REPO_PATH}/manifest.json`,
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css',
-    `${REPO_PATH}/icons/icon-192x192.png`, // 경로 수정
-    `${REPO_PATH}/icons/icon-512x512.png`  // 경로 수정
+    `${REPO_PATH}/icons/icon-192x192.png`,
+    `${REPO_PATH}/icons/icon-512x512.png`
 ];
 
 // 설치 이벤트: 캐시 초기화 및 필수 파일 저장
@@ -65,3 +65,4 @@ self.addEventListener('activate', event => {
     self.clients.claim(); 
 
 });
+
