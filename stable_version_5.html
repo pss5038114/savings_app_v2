@@ -1,0 +1,1691 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>일일 예산 대시보드 (v60 - PWA Ready)</title>
+    
+    <link rel="manifest" href="manifest.json">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #e0e0e0; 
+            --danger-color: #d9534f; 
+            --success-color: #28a745; 
+            --warning-color: #ffc107; 
+            --transport-color: #f0ad4e; 
+            --fixed-color: #ffffff; 
+            --fixed-bg-color: #666; 
+            --calibration-color: #a45ee5;
+            --info-color: #17a2b8; 
+            --debug-color: #17a2b8;
+
+            --app-bg-color: #1e1e1e; 
+            --body-bg-color: #121212; 
+            
+            --text-color: #e0e0e0; 
+            --text-color-light: #888888; 
+            --border-color: #333333; 
+            --keypad-bg-color: #333; 
+            --keypad-bg-hover: #444; 
+            
+            /* 차트 각도 변수 */
+            --deg-var-spend: 0deg;    
+            --deg-transport: 0deg;
+            --deg-fixed-spent: 0deg;  
+            --deg-fixed-total: 0deg;
+        }
+        
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+
+        html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--body-bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            display: flex;
+            justify-content: center; 
+            align-items: center;     
+        }
+
+        #app-frame {
+            width: 100%;
+            max-width: 600px; 
+            height: 100%;
+            background-color: var(--app-bg-color); 
+            position: relative;
+            display: flex;
+            flex-direction: column; 
+            box-shadow: 0 0 30px rgba(0,0,0,0.5); 
+        }
+
+        @media (min-width: 601px) {
+            #app-frame {
+                height: calc(100% - 40px); 
+                max-height: 900px; 
+                border-radius: 20px; 
+                overflow: hidden; 
+                border: 1px solid #333; 
+            }
+        }
+
+        /* 온보딩 화면 스타일 */
+        #onboarding-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: var(--app-bg-color);
+            z-index: 2000; 
+            display: flex;
+            flex-direction: column;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .onboarding-step {
+            display: none; 
+            flex-direction: column;
+            height: 100%;
+            justify-content: center; 
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        .onboarding-step.active { display: flex; }
+        
+        #step1 { justify-content: flex-start; padding-top: 30%; }
+
+        .onboarding-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 10px;
+        }
+        .onboarding-desc {
+            font-size: 0.9rem;
+            color: var(--text-color-light);
+            margin-bottom: 40px;
+        }
+        
+        .name-input-wrapper {
+            margin-bottom: 30px;
+            border-bottom: 2px solid var(--primary-color);
+        }
+        #userNameInput {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            text-align: center;
+            padding: 10px;
+            outline: none;
+        }
+        #userNameInput::placeholder { color: #555; }
+        
+        /* 자산 입력창 및 한글 표시 스타일 */
+        #startAssetDisplay {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 5px;
+            min-height: 50px;
+        }
+        
+        .korean-money-text {
+            font-size: 1.0rem;
+            color: var(--primary-color);
+            min-height: 24px;
+            margin-bottom: 20px;
+            font-weight: normal;
+            opacity: 0.8;
+        }
+        
+        .onboarding-btn {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            background-color: var(--primary-color);
+            color: #333;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            margin-top: auto; 
+            margin-bottom: 20px;
+        }
+        #step2 .onboarding-btn { margin-top: 20px; margin-bottom: 0; } 
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 헤더 및 대시보드 */
+        #header-area { flex: 0 0 auto; background-color: var(--app-bg-color); box-shadow: 0 2px 10px rgba(0,0,0,0.3); z-index: 10; }
+        .dashboard-container { padding: 15px 20px 5px; display: flex; flex-direction: column; align-items: center; border-bottom: 1px solid var(--border-color); transition: all 0.3s ease; }
+        .content-area { flex: 1; overflow-y: auto; padding: 20px; padding:bottom: 90px; scrollbar-width: none; }
+        .content-area::-webkit-scrollbar { display: none; }
+        #bottom-nav { position: absolute; bottom: 0; left: 0; width: 100%; background-color: var(--app-bg-color); border-top: 1px solid var(--border-color); z-index: 20; }
+        .nav-container { display: flex; justify-content: space-around; width: 100%; }
+        
+        .chart-container { width: 220px; height: 220px; display: grid; place-items: center; position: relative; margin-bottom: 10px; }
+        
+        /* 도넛 차트 (누적 방식 + 고정지출 반시계 배치) */
+        .donut-chart {
+            width: 100%; height: 100%; border-radius: 50%; position: relative;
+            background-image: conic-gradient(
+                from 0deg, 
+                var(--danger-color) 0deg var(--deg-var-spend), 
+                var(--transport-color) var(--deg-var-spend) calc(var(--deg-var-spend) + var(--deg-transport)),
+                transparent calc(var(--deg-var-spend) + var(--deg-transport)) calc(360deg - var(--deg-fixed-total)),
+                var(--fixed-bg-color) calc(360deg - var(--deg-fixed-total)) calc(360deg - var(--deg-fixed-spent)),
+                var(--fixed-color) calc(360deg - var(--deg-fixed-spent)) 360deg
+            );
+        }
+
+        .donut-chart::before { content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 82%; height: 82%; background-color: var(--app-bg-color); border-radius: 50%; }
+        .chart-center-text { position: absolute; text-align: center; grid-area: 1 / 1; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .chart-center-text h2 { margin: 0; font-size: 2.4rem; font-weight: 700; color: #ffffff; letter-spacing: -0.05em; text-shadow: 0 0 10px rgba(0,0,0,0.5); line-height: 1.2; }
+        .chart-center-text p { margin: 0; font-size: 1.0rem; font-weight: 600; color: var(--text-color-light); }
+        #limitTicker { font-size: 0.95rem; font-weight: 700; margin-bottom: 5px; padding: 2px 8px; border-radius: 12px; background-color: rgba(0,0,0,0.3); }
+        .ticker-up { color: var(--success-color); } .ticker-down { color: var(--danger-color); } .ticker-same { color: var(--text-color-light); } 
+        
+        .drawer-section { width: 100%; overflow: hidden; max-height: 0; opacity: 0; transition: max-height 0.4s ease-out, opacity 0.3s ease-in; }
+        .drawer-section.open { max-height: 400px; opacity: 1; margin-top: 15px; }
+        
+        .legend-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 10px 10px; 
+            width: 100%; 
+            font-size: 0.9rem; 
+        }
+        .legend-item { 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: flex-start; 
+            background-color: rgba(255, 255, 255, 0.05); 
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .legend-label { 
+            display: flex; 
+            align-items: center; 
+            gap: 6px; 
+            color: var(--text-color-light); 
+            font-size: 0.8rem; 
+            margin-bottom: 4px;
+        }
+        .legend-value { 
+            font-weight: 700; 
+            color: var(--text-color); 
+            text-align: left;
+            font-size: 1.1rem; 
+        }
+        
+        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .dot.red { background-color: var(--danger-color); } .dot.yellow { background-color: var(--transport-color); } .dot.white { background-color: var(--fixed-color); border: 1px solid #555; } .dot.gray { background-color: var(--fixed-bg-color); border: 1px solid #555; } 
+        
+        .dashboard-divider { width: 100%; height: 1px; background-color: var(--border-color); margin: 15px 0; border: none; }
+        .summary-footer { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; text-align: center; }
+        .summary-row h3 { margin: 0 0 5px; font-size: 0.8rem; color: var(--text-color-light); font-weight: normal; }
+        .summary-row p { margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--primary-color); }
+        #expandButton { background: none; border: none; color: var(--text-color-light); font-size: 1.5rem; padding: 5px; cursor: pointer; width: 100%; margin-top: 5px; transition: color 0.2s; }
+        #expandButton:hover { color: var(--primary-color); }
+        
+        .tab-panel { display: none; } .tab-panel.active { display: block; }
+        h2 { font-size: 1.2rem; margin-top: 0; margin-bottom: 20px; border-bottom: 2px solid var(--primary-color); padding-bottom: 8px; display: flex; align-items: center; gap: 8px; color: var(--primary-color); }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 6px; font-weight: 600; color: var(--text-color-light); }
+        
+        .form-group input[type="text"], 
+        .form-group input[type="number"], 
+        .form-group input[type="date"] { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; box-sizing: border-box; font-size: 1rem; background-color: #333; color: var(--text-color); transition: border-color 0.2s; }
+        .form-group input:focus { border-color: var(--primary-color); outline: none; }
+        
+        button { display: inline-block; width: auto; padding: 12px; color: white; border: none; border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background-color 0.2s, transform 0.1s; margin-top: 10px; }
+        .full-width { width: 100%; display: block; }
+        #saveSettingsButton { background-color: var(--warning-color); color: #333; } 
+        #addFixedCostButton { background-color: #444; color: #fff; margin-top: 0; padding: 8px 12px; font-size: 0.9rem; }
+        .delete-cost-button { background-color: var(--danger-color); color: white; padding: 8px 12px; font-size: 0.9rem; margin-top: 0; flex: 0 0 auto; }
+        .fixed-cost-item { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+        .fixed-cost-item input[type="text"] { flex: 3; } .fixed-cost-item input[type="number"].amount { flex: 2; } .fixed-cost-item input[type="number"].day { flex: 1; } 
+        .log-entry { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px dashed var(--border-color); font-size: 0.95rem; cursor: pointer; transition: background-color 0.2s; }
+        .log-entry:hover { background-color: #2a2a2a; }
+        .log-entry:last-child { border-bottom: none; }
+        .log-time { font-weight: 600; color: var(--text-color); flex-shrink: 0; font-size: 1.1rem; }
+        .log-details { text-align: right; flex-grow: 1; }
+        .log-memo { color: var(--text-color-light); font-size: 0.85rem; display: block; margin-top: 3px; }
+        .log-spend { color: var(--danger-color); margin-left: 8px; font-weight: 600; }
+        .log-transport { color: var(--transport-color); margin-left: 8px; font-weight: 600; }
+        .log-income { color: var(--success-color); margin-left: 8px; font-weight: 600; }
+        .log-fixed { color: var(--fixed-color); margin-left: 8px; font-weight: 600; } 
+        .log-calibration { color: var(--calibration-color); margin-left: 8px; font-weight: 600; }
+        #logHistory { max-height: 400px; overflow-y: auto; background-color: #2a2a2a; padding: 10px; border-radius: 8px; margin-top: 20px; }
+        .nav-button { flex: 1; background-color: transparent; border: none; color: var(--text-color-light); padding: 10px 5px; cursor: pointer; font-size: 0.75rem; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: color 0.2s; }
+        .nav-button i { font-size: 1.2rem; }
+        .nav-button.active { color: var(--primary-color); }
+        .nav-button.debug { color: var(--debug-color); display: none; } 
+        .nav-button.debug.active { color: var(--debug-color); filter: brightness(1.2); }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+        .modal-content { background-color: var(--app-bg-color); padding: 20px; border-radius: 8px; width: 90%; max-width: 500px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        .modal-content h3 { margin-top: 0; color: var(--primary-color); }
+        .modal-buttons { display: flex; gap: 10px; margin-top: 20px; }
+        .modal-buttons button { flex: 1; }
+        
+        #amountNextButton { background-color: var(--success-color); color: white; }
+        
+        #saveEditButton { background-color: var(--success-color); }
+        #deleteButton { background-color: var(--danger-color); }
+        #closeModalButton { background-color: #555; }
+        .quick-add-container { display: flex; gap: 15px; margin-bottom: 15px; }
+        .quick-add-button { flex: 1; font-size: 1.2rem; padding: 20px; border-radius: 8px; }
+        .quick-add-button.spend { background-color: var(--danger-color); }
+        .quick-add-button.income { background-color: var(--success-color); }
+        .quick-add-button.transport { background-color: var(--transport-color); padding: 10px; font-size: 1.1rem; color: #333; }
+        
+        #fixedCostApprovalButton { display: block; margin-top: 15px; transition: all 0.3s; background-color: #444; color: #fff; font-size: 1.0rem; }
+        #fixedCostApprovalButton.auto-active { background-color: var(--info-color); color: #fff; font-weight: bold; }
+        #fixedCostApprovalButton.overdue { background-color: var(--danger-color); color: #fff; font-weight: bold; animation: pulse 1.5s infinite; }
+        
+        /* [수정 3] 승인 대기 버튼(manual-active)에도 흰색 펄스 애니메이션 적용 */
+        #fixedCostApprovalButton.manual-active { 
+            background-color: var(--fixed-color); 
+            color: #333; 
+            font-weight: bold;
+            animation: whitePulse 1.5s infinite; 
+        }
+        
+        #fixedCostApprovalButton small { display: block; font-size: 0.8rem; font-weight: normal; opacity: 0.8; margin-top: 2px; }
+        
+        @keyframes pulse { 
+            0% { box-shadow: 0 0 0 0 rgba(217, 83, 79, 0.7); } 
+            70% { box-shadow: 0 0 0 10px rgba(217, 83, 79, 0); } 
+            100% { box-shadow: 0 0 0 0 rgba(217, 83, 79, 0); } 
+        }
+
+        /* 흰색 펄스 애니메이션 정의 */
+        @keyframes whitePulse { 
+            0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); } 
+            70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); } 
+            100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); } 
+        }
+        
+        .date-navigator { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .date-nav-button { background-color: #444; color: var(--text-color); font-size: 1.5rem; padding: 5px 15px; border-radius: 4px; margin-top: 0; line-height: 1; }
+        .date-display-container { position: relative; text-align: center; flex-grow: 1; }
+        #historyDateText { font-size: 1.2rem; font-weight: 600; color: var(--primary-color); padding: 10px; display: block; cursor: pointer; }
+        #historyDate { display: none; }
+        .type-toggle-buttons { display: flex; gap: 8px; margin-bottom: 15px; }
+        .type-toggle-btn { flex: 1; padding: 10px; font-size: 0.9rem; font-weight: 600; border: 2px solid var(--border-color); background-color: #333; color: var(--text-color-light); transition: all 0.2s; margin-top: 0; }
+        .type-toggle-btn.active.spend { background-color: rgba(217, 83, 79, 0.1); border-color: var(--danger-color); color: var(--danger-color); }
+        .type-toggle-btn.active.transport { background-color: rgba(240, 173, 78, 0.1); border-color: var(--transport-color); color: var(--transport-color); }
+        .type-toggle-btn.active.income { background-color: rgba(40, 167, 69, 0.1); border-color: var(--success-color); color: var(--success-color); }
+        .type-toggle-btn.active.fixed { background-color: rgba(224, 224, 224, 0.1); border-color: var(--fixed-color); color: var(--fixed-color); } 
+        input#amountInput { position: absolute; top: -500px; left: -500px; opacity: 0; width: 0; height: 0; inputmode: "none"; }
+        #amountDisplay { font-size: 2.5rem; font-weight: 700; color: var(--text-color); text-align: right; padding: 10px 20px; background-color: #2a2a2a; border-radius: 6px; margin-bottom: 5px; min-height: 50px; cursor: pointer; }
+        .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+        .keypad-btn { background-color: var(--keypad-bg-color); color: var(--text-color); padding: 20px; font-size: 1.5rem; font-weight: 600; border-radius: 8px; margin-top: 0; text-align: center; }
+        .keypad-btn:hover { background-color: var(--keypad-bg-hover); }
+        .keypad-btn.large { grid-column: span 1; }
+        .keypad-btn.backspace { font-size: 1.5rem; }
+        #fixedCostModal .fixed-cost-list-popup { max-height: 300px; overflow-y: auto; background-color: #2a2a2a; border-radius: 6px; padding: 10px; }
+        .fixed-cost-list-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px dashed var(--border-color); }
+        .fixed-cost-list-item:last-child { border-bottom: none; }
+        .fixed-cost-list-item span { font-size: 1rem; font-weight: 600; }
+        .fixed-cost-list-item button { background-color: var(--success-color); padding: 8px 12px; font-size: 0.9rem; margin-top: 0; flex-shrink: 0; }
+        .edit-fixed-cost-btn { background-color: #555 !important; margin-right: 5px; }
+        .fixed-cost-edit-input { width: 80px; padding: 5px; background: #444; border: 1px solid #666; color: #fff; border-radius: 4px; margin-right: 5px; }
+
+        #versionText { margin-top: 40px; color: #444; font-size: 0.8rem; text-align: center; cursor: pointer; user-select: none; }
+        .debug-date-controls { display: flex; gap: 10px; margin-top: 10px; }
+        .debug-date-controls button { flex: 1; margin-top: 0; }
+        
+        .toggle-switch { position: relative; display: inline-block; width: 50px; height: 24px; vertical-align: middle; margin-left: 10px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #444; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--success-color); }
+        input:checked + .slider:before { transform: translateX(26px); }
+        
+        /* --- 설정 메뉴 리스트 스타일 (test.html에서 가져옴) --- */
+        .settings-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0; 
+        }
+        
+        .settings-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: transparent;
+            border: none;
+            border-bottom: 1px solid #333;
+            padding: 20px 5px;
+            color: var(--text-color);
+            font-size: 1.1rem;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+            text-align: left;
+            margin-top: 0; 
+            border-radius: 0;
+            transition: background-color 0.2s;
+        }
+        
+        .settings-item:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        
+        .settings-item i.arrow {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .settings-item-icon {
+            width: 24px;
+            text-align: center;
+            margin-right: 10px;
+            color: var(--primary-color);
+        }
+
+        /* 팝업 내 스크롤 영역 (고정지출 리스트용) */
+        .modal-scroll-area {
+            max-height: 60vh;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+        
+        /* 백업 팝업 스타일 */
+        .backup-info-text {
+            color: var(--text-color-light); 
+            font-size: 0.9rem; 
+            margin-bottom: 10px;
+            padding: 0 5px;
+        }
+        
+        .backup-input-group {
+             display: flex; 
+             align-items: center; 
+             justify-content: space-between;
+             margin-bottom: 15px;
+             padding: 10px;
+             border: 1px solid var(--border-color);
+             border-radius: 6px;
+        }
+
+        .backup-input-group label {
+            margin: 0;
+            color: var(--text-color);
+            font-weight: 500;
+            font-size: 1rem;
+            flex-grow: 1;
+        }
+
+        .backup-input-group input[type="text"] {
+            width: 50%;
+            background: #444;
+            padding: 8px;
+            font-size: 0.9rem;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="onboarding-screen">
+        
+        <div id="step1" class="onboarding-step">
+            <div class="onboarding-title">환영합니다!</div>
+            <p class="onboarding-desc">가계부를 시작하기 위해<br>이름을 알려주세요.</p>
+            <div class="name-input-wrapper">
+                <input type="text" id="userNameInput" placeholder="">
+            </div>
+            <button class="onboarding-btn" id="step1Next">다음</button>
+        </div>
+
+        <div id="step2" class="onboarding-step">
+            <div class="onboarding-title"><span id="displayUserName">OOO</span>님만의<br>가볍고 강력한 가계부.</div>
+            <p class="onboarding-desc">가계부를 시작하기 위해<br>관리할 계좌의 잔고를 입력해주세요.</p>
+            
+            <div id="startAssetDisplay">0</div>
+            <div id="startAssetKorean" class="korean-money-text"></div>
+            
+            <input type="number" id="startAssetInput" inputmode="none" style="display:none;"> 
+            
+            <div class="keypad">
+                <button class="keypad-btn ob-key" data-key="1">1</button><button class="keypad-btn ob-key" data-key="2">2</button><button class="keypad-btn ob-key" data-key="3">3</button>
+                <button class="keypad-btn ob-key" data-key="4">4</button><button class="keypad-btn ob-key" data-key="5">5</button><button class="keypad-btn ob-key" data-key="6">6</button>
+                <button class="keypad-btn ob-key" data-key="7">7</button><button class="keypad-btn ob-key" data-key="8">8</button><button class="keypad-btn ob-key" data-key="9">9</button>
+                <button class="keypad-btn large ob-key" data-key="00">00</button><button class="keypad-btn ob-key" data-key="0">0</button><button class="keypad-btn backspace ob-key" data-key="backspace"><i class="fas fa-backspace"></i></button>
+            </div>
+
+            <button class="onboarding-btn" id="step2Next">다음</button>
+        </div>
+
+        <div id="step3" class="onboarding-step">
+            <div style="flex-grow:1; display:flex; flex-direction:column; justify-content:center;">
+                <div class="onboarding-title">저축을 위한<br>용감한 첫 걸음</div>
+                <p class="onboarding-desc">시작이 반!<br>당신의 멋진 금융 생활을 응원합니다.</p>
+            </div>
+            <button class="onboarding-btn" id="step3Start" style="background-color: var(--success-color); color: white;">저축하러 가기</button>
+        </div>
+
+    </div>
+
+    <div id="app-frame" style="display:none;">
+        
+        <div id="header-area">
+            <div class="dashboard-container">
+                <div class="chart-container">
+                    <div class="donut-chart" id="donutChart"></div>
+                    <div class="chart-center-text">
+                        <h2 id="todayLimit">0원</h2>
+                        <div id="limitTicker" class="ticker-same">(- 0원)</div>
+                        <p><i class="far fa-calendar-alt"></i> <span id="daysRemaining">0</span>일 남음</p>
+                    </div>
+                </div>
+                <div id="drawerStep1" class="drawer-section">
+                    <div class="legend-grid">
+                        <div class="legend-item"><span class="legend-label"><span class="dot red"></span>누적 변동 지출</span><span class="legend-value" id="valVarSpend">0원</span></div>
+                        <div class="legend-item"><span class="legend-label"><span class="dot yellow"></span>누적 교통비</span><span class="legend-value" id="valTransport">0원</span></div>
+                        <div class="legend-item"><span class="legend-label"><span class="dot gray"></span>예상 고정 지출</span><span class="legend-value" id="valFixedForecast">0원</span></div>
+                        <div class="legend-item"><span class="legend-label"><span class="dot white"></span>누적 고정 지출</span><span class="legend-value" id="valFixedSpent">0원</span></div>
+                    </div>
+                </div>
+                <div id="drawerStep2" class="drawer-section">
+                    <hr class="dashboard-divider">
+                    <div class="summary-footer">
+                        <div class="summary-row"><h3>계좌 총 잔액</h3><p id="valTotalLeft">0원</p></div>
+                        <div class="summary-row"><h3>누적 총 지출액</h3><p id="valTotalSpent">0원</p></div>
+                    </div>
+                </div>
+                <button id="expandButton"><i class="fas fa-chevron-down"></i></button>
+            </div>
+        </div>
+
+        <div class="content-area">
+            <div id="tab-record" class="tab-panel active">
+                <div class="section">
+                    <h2><i class="fas fa-pencil-alt"></i> 일일 기록</h2>
+                    <div class="quick-add-container">
+                        <button id="spendButton" class="quick-add-button spend"><i class="fas fa-minus-circle"></i> 지출</button>
+                        <button id="incomeButton" class="quick-add-button income"><i class="fas fa-plus-circle"></i> 수입</button>
+                    </div>
+                    <button id="transportButton" class="quick-add-button transport full-width"><i class="fas fa-taxi"></i> 교통비</button>
+                    <button id="fixedCostApprovalButton" class="full-width"><i class="fas fa-exclamation-triangle"></i> 고정지출 결제 승인 (N건)</button>
+                </div>
+            </div>
+            <div id="tab-history" class="tab-panel">
+                <div class="section">
+                    <h2><i class="fas fa-list-alt"></i> 나의 기록</h2>
+                    <div class="date-navigator">
+                        <button id="prevDayButton" class="date-nav-button" type="button">&lt;</button>
+                        <div class="date-display-container">
+                            <span id="historyDateText">날짜 로딩중...</span>
+                            <input type="date" id="historyDate">
+                        </div>
+                        <button id="nextDayButton" class="date-nav-button" type="button">&gt;</button>
+                    </div>
+                    <div id="logHistory"></div>
+                </div>
+            </div>
+            <div id="tab-settings" class="tab-panel">
+                <div class="section">
+                    <h2><i class="fas fa-cog"></i> 설정</h2>
+                    
+                    <div class="settings-list">
+                        <button class="settings-item" id="menuPayday">
+                            <div><i class="fas fa-calendar-check settings-item-icon"></i> 월급일 관리</div>
+                            <i class="fas fa-chevron-right arrow"></i>
+                        </button>
+
+                        <button class="settings-item" id="menuFixedCost">
+                            <div><i class="fas fa-file-invoice-dollar settings-item-icon"></i> 고정지출 관리</div>
+                            <i class="fas fa-chevron-right arrow"></i>
+                        </button>
+
+                        <button class="settings-item" id="menuCalibration">
+                            <div><i class="fas fa-balance-scale settings-item-icon"></i> 계좌 총 잔액 오차 보정</div>
+                            <i class="fas fa-chevron-right arrow"></i>
+                        </button>
+
+                        <button class="settings-item" id="menuBackupRestore">
+                            <div><i class="fas fa-save settings-item-icon"></i> 백업 및 복원</div>
+                            <i class="fas fa-chevron-right arrow"></i>
+                        </button>
+                        
+                    </div>
+                    <p id="versionText">Ver 1.1 (Build v60 - PWA Ready)</p>
+                </div>
+            </div>
+            <div id="tab-debug" class="tab-panel">
+                <div class="section">
+                    <h2 style="color: var(--debug-color); border-color: var(--debug-color);"><i class="fas fa-tools"></i> 디버그 모드</h2>
+                    <div class="form-group">
+                        <label for="virtualDate" style="color: var(--debug-color);">가상 날짜 세팅</label>
+                        <input type="date" id="virtualDate">
+                    </div>
+                    <button id="applyVirtualDateButton" class="full-width" style="background-color: var(--debug-color);">시간 적용</button>
+                    <button id="resetVirtualDateButton" class="full-width" style="background-color: #444; margin-top: 10px;">리얼타임 동기화</button>
+                    <div class="debug-date-controls" style="display: flex; gap: 10px; margin-top: 10px;">
+                        <button id="debugPrevDayBtn" style="background-color: #444; flex: 1; margin-top: 0;">⏪ 1일 전</button>
+                        <button id="debugNextDayBtn" style="background-color: #444; flex: 1; margin-top: 0;">⏩ 1일 후</button>
+                    </div>
+                    <hr style="border: 1px solid var(--border-color); margin: 25px 0;">
+                    <button id="hideDebugButton" class="full-width" style="background-color: #666;">디버그 모드 종료</button>
+                    <button id="checkStatusButton" class="full-width" style="background-color: #17a2b8; margin-top: 10px;">데이터 디버그</button>
+                    <button id="factoryResetButton" class="full-width" style="background-color: var(--danger-color); margin-top: 10px;">완전 초기화</button>
+                </div>
+            </div>
+        </div>
+
+        <nav id="bottom-nav">
+            <div class="nav-container">
+                <button class="nav-button active" data-tab="tab-record"><i class="fas fa-pencil-alt"></i><span>일일 기록</span></button>
+                <button class="nav-button" data-tab="tab-history"><i class="fas fa-list-alt"></i><span>나의 기록</span></button>
+                <button class="nav-button" data-tab="tab-settings"><i class="fas fa-cog"></i><span>설정</span></button>
+                <button class="nav-button debug" data-tab="tab-debug" id="debugNavButton"><i class="fas fa-tools"></i><span>디버그</span></button>
+            </div>
+        </nav>
+
+    </div>
+
+    <div id="editModal" class="modal-overlay" style="display:none;"><div class="modal-content"><h3><i class="fas fa-edit"></i> 기록 수정</h3><input type="hidden" id="editLogId"><div id="calibrationNotice" style="display:none; color: var(--calibration-color); margin-bottom: 15px; font-weight: bold;">* 잔액 보정 기록입니다. (유형 변경 불가)</div><div class="form-group" id="typeToggleContainer"><label>유형</label><div class="type-toggle-buttons"><button class="type-toggle-btn" data-type="spend">지출</button><button class="type-toggle-btn" data-type="transport">교통비</button><button class="type-toggle-btn" data-type="income">수입</button><button class="type-toggle-btn" data-type="fixed">고정지출</button></div></div><div class="form-group"><label for="editAmount">금액</label><input type="number" id="editAmount"></div><div class="form-group"><label for="editMemo">메모</label><input type="text" id="editMemo"></div><div class="modal-buttons"><button id="saveEditButton" class="full-width"><i class="fas fa-save"></i> 변경 사항 저장</button></div><div class="modal-buttons"><button id="deleteButton" class="full-width"><i class="fas fa-trash"></i> 기록 삭제</button><button id="closeModalButton" class="full-width" style="background-color: #555;"><i class="fas fa-times"></i> 닫기</button></div></div></div>
+    
+    <div id="amountModal" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <h3 id="amountModalTitle"></h3>
+            <input type="number" id="amountInput" inputmode="none">
+            <div id="amountDisplay" title="PC 키보드 입력을 원하시면 여기를 클릭하세요">0</div>
+            <div id="amountKorean" class="korean-money-text" style="text-align:right;"></div>
+            
+            <div class="keypad">
+                <button class="keypad-btn" data-key="1">1</button><button class="keypad-btn" data-key="2">2</button><button class="keypad-btn" data-key="3">3</button>
+                <button class="keypad-btn" data-key="4">4</button><button class="keypad-btn" data-key="5">5</button><button class="keypad-btn" data-key="6">6</button>
+                <button class="keypad-btn" data-key="7">7</button><button class="keypad-btn" data-key="8">8</button><button class="keypad-btn" data-key="9">9</button>
+                <button class="keypad-btn large" data-key="00">00</button><button class="keypad-btn" data-key="0">0</button><button class="keypad-btn backspace" data-key="backspace"><i class="fas fa-backspace"></i></button>
+            </div>
+            <div class="modal-buttons">
+                <button id="amountNextButton" class="full-width"><i class="fas fa-arrow-right"></i> 다음</button>
+                <button id="amountCancelButton" class="full-width" style="background-color: #555;"><i class="fas fa-times"></i> 취소</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="memoModal" class="modal-overlay" style="display:none;"><div class="modal-content"><h3><i class="fas fa-sticky-note"></i> 메모 (선택 사항)</h3><div class="form-group"><label for="memoInput">지출 내역을 간단히 적습니다</label><input type="text" id="memoInput" placeholder="예: 식사비 (빈칸이면 '기록 없음'으로 처리)"></div><div class="modal-buttons"><button id="memoRecordButton" class="full-width" style="background-color: var(--success-color);"><i class="fas fa-check"></i> 기록하기</button><button id="memoCancelButton" class="full-width" style="background-color: #555;"><i class="fas fa-times"></i> 취소</button></div></div></div>
+    
+    <div id="fixedCostModal" class="modal-overlay" style="display:none;"><div class="modal-content"><h3><i class="fas fa-exclamation-triangle"></i> 고정지출 항목</h3><div class="fixed-cost-list-popup" id="fixedCostListPopup"></div><div class="modal-buttons"><button id="closeFixedCostModalButton" class="full-width" style="background-color: #555;"><i class="fas fa-times"></i> 닫기</button></div></div></div>
+
+    
+    <div id="settingModalPayday" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <h3><i class="fas fa-calendar-check"></i> 월급일 관리</h3>
+            <p style="color:var(--text-color-light); font-size:0.9rem; margin-bottom:20px;">다음 월급 예정일을 설정하면<br>오늘부터 남은 일수를 계산해 예산을 나눕니다.</p>
+            
+            <div class="form-group">
+                <label for="settingGoalDate">목표일 (다음 월급일)</label>
+                <input type="date" id="settingGoalDate">
+            </div>
+
+            <div class="modal-buttons">
+                <button id="savePaydayButton" class="full-width" style="background-color: var(--success-color);">저장</button>
+                <button id="closePaydayButton" class="full-width" style="background-color: #555;">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="settingModalFixed" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <h3><i class="fas fa-file-invoice-dollar"></i> 고정지출 관리</h3>
+            
+            <div class="modal-scroll-area">
+                <p style="font-size: 0.8rem; color: var(--text-color-light); margin-bottom: 10px;">
+                    * 결제일이 31일인 항목은 해당 월의 말일로 자동 처리됩니다.
+                </p>
+                <div id="fixedCostListContainer"></div>
+                <button id="addFixedCostButton" type="button" style="margin-bottom:20px;"><i class="fas fa-plus"></i> 고정지출 항목 추가</button>
+
+                <div class="form-group" style="display: flex; align-items: center; justify-content: space-between; background: #2a2a2a; padding: 15px; border-radius: 8px;">
+                    <label style="margin:0; color: #fff;">고정지출 자동 승인 모드</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="settingAutoApproveToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <p style="font-size: 0.8rem; color: var(--text-color-light); margin-top: 5px;">
+                    * 켜짐: 결제일 도래 시 앱 실행 시 자동 기록<br>
+                    * 저장 시 연체/미승인 항목이 일괄 승인될 수 있습니다.
+                </p>
+            </div>
+
+            <div class="modal-buttons">
+                <button id="saveFixedCostButton" class="full-width" style="background-color: var(--success-color);">저장</button>
+                <button id="closeFixedCostButton" class="full-width" style="background-color: #555;">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="settingModalCalibration" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <h3 style="color: var(--calibration-color);"><i class="fas fa-balance-scale"></i> 잔액 오차 보정</h3>
+            <p style="color:var(--text-color-light); font-size:0.9rem; margin-bottom:20px;">앱 상의 잔액과 실제 통장 잔액이 다를 때<br>차액만큼 보정 기록을 생성하여 맞춥니다.</p>
+            
+            <div class="form-group">
+                <label>현재 앱 상의 계좌 총 잔액</label>
+                <p id="popupCurrentBalance" style="font-size: 1.5rem; font-weight: bold; color: var(--text-color); margin-top: 5px;">0원</p>
+            </div>
+            <div class="form-group">
+                <label for="popupActualBalanceInput">실제 계좌 총 잔액</label>
+                <input type="number" id="popupActualBalanceInput" placeholder="실제 통장 잔액 입력">
+            </div>
+
+            <div class="modal-buttons">
+                <button id="executeCalibrationButton" class="full-width" style="background-color: var(--calibration-color);">보정 실행</button>
+                <button id="closeCalibrationButton" class="full-width" style="background-color: #555;">취소</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="settingModalBackupRestore" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <h3><i class="fas fa-save"></i> 백업 및 복원</h3>
+            <p class="backup-info-text">
+                이 기능은 현재 데이터를 JSON 파일로 다운로드하거나, 이전에 다운로드한 파일을 불러와 복원합니다.
+            </p>
+            
+            <div class="form-group">
+                <label>1.1. 백업 파일 생성하기 (수동)</label>
+                <p class="backup-info-text">현재 데이터를 다운로드합니다. 파일 이름: `budget_backup_YYYYMMDD.json`</p>
+                <button id="createBackupButton" class="full-width" style="background-color: var(--info-color);"><i class="fas fa-download"></i> 백업 파일 생성 및 다운로드</button>
+            </div>
+
+            <div class="form-group">
+                <label>1.2. 복원하기</label>
+                <p class="backup-info-text">복원 파일 선택 후 실행 버튼을 누르면 **현재 데이터가 덮어쓰여집니다.**</p>
+                <input type="file" id="restoreFileInput" accept=".json" style="padding: 10px 0; background: none; border: none; color: var(--text-color);">
+                <button id="executeRestoreButton" class="full-width" style="background-color: var(--danger-color);"><i class="fas fa-upload"></i> 선택된 파일로 복원 실행</button>
+            </div>
+
+            <div class="modal-buttons">
+                <button id="closeBackupButton" class="full-width" style="background-color: #555;">닫기</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const navButtons = document.querySelectorAll('.nav-button');
+            const tabPanels = document.querySelectorAll('.tab-panel');
+            function showTab(tabId) {
+                tabPanels.forEach(panel => { panel.style.display = 'none'; panel.classList.remove('active'); });
+                navButtons.forEach(button => { button.classList.remove('active'); });
+                document.getElementById(tabId).style.display = 'block';
+                document.getElementById(tabId).classList.add('active');
+                document.querySelector(`.nav-button[data-tab="${tabId}"]`).classList.add('active');
+            }
+            navButtons.forEach(button => { button.addEventListener('click', () => { const tabId = button.dataset.tab; showTab(tabId); }); });
+            showTab('tab-record');
+
+            const expandButton = document.getElementById('expandButton');
+            const drawerStep1 = document.getElementById('drawerStep1');
+            const drawerStep2 = document.getElementById('drawerStep2');
+            let drawerState = 0; 
+            expandButton.addEventListener('click', () => { drawerState++; if (drawerState > 2) drawerState = 0; updateDrawerUI(); });
+            function updateDrawerUI() {
+                if (drawerState === 0) { drawerStep1.classList.remove('open'); drawerStep2.classList.remove('open'); expandButton.innerHTML = '<i class="fas fa-chevron-down"></i>'; } 
+                else if (drawerState === 1) { drawerStep1.classList.add('open'); drawerStep2.classList.remove('open'); expandButton.innerHTML = '<i class="fas fa-chevron-down"></i>'; } 
+                else if (drawerState === 2) { drawerStep1.classList.add('open'); drawerStep2.classList.add('open'); expandButton.innerHTML = '<i class="fas fa-chevron-up"></i>'; }
+            }
+
+            // 온보딩 관련 DOM
+            const appFrame = document.getElementById('app-frame');
+            const onboardingScreen = document.getElementById('onboarding-screen');
+            const step1 = document.getElementById('step1');
+            const step2 = document.getElementById('step2');
+            const step3 = document.getElementById('step3');
+            const userNameInput = document.getElementById('userNameInput');
+            const displayUserName = document.getElementById('displayUserName');
+            const startAssetDisplay = document.getElementById('startAssetDisplay');
+            const startAssetInput = document.getElementById('startAssetInput');
+            const startAssetKorean = document.getElementById('startAssetKorean'); 
+            
+            // --- [신규 UI] 설정 메뉴 및 팝업 DOM 요소 ---
+            const menuPayday = document.getElementById('menuPayday');
+            const menuFixedCost = document.getElementById('menuFixedCost');
+            const menuCalibration = document.getElementById('menuCalibration');
+            const menuBackupRestore = document.getElementById('menuBackupRestore');
+
+            const settingModalPayday = document.getElementById('settingModalPayday');
+            const settingGoalDate = document.getElementById('settingGoalDate');
+            const savePaydayButton = document.getElementById('savePaydayButton');
+            const closePaydayButton = document.getElementById('closePaydayButton');
+
+            const settingModalFixed = document.getElementById('settingModalFixed');
+            const settingAutoApproveToggle = document.getElementById('settingAutoApproveToggle');
+            const saveFixedCostButton = document.getElementById('saveFixedCostButton');
+            const closeFixedCostButton = document.getElementById('closeFixedCostButton');
+
+            const settingModalCalibration = document.getElementById('settingModalCalibration');
+            const popupCurrentBalance = document.getElementById('popupCurrentBalance');
+            const popupActualBalanceInput = document.getElementById('popupActualBalanceInput');
+            const executeCalibrationButton = document.getElementById('executeCalibrationButton');
+            const closeCalibrationButton = document.getElementById('closeCalibrationButton');
+
+            // 백업/복원 DOM 요소
+            const settingModalBackupRestore = document.getElementById('settingModalBackupRestore');
+            const createBackupButton = document.getElementById('createBackupButton');
+            const restoreFileInput = document.getElementById('restoreFileInput');
+            const executeRestoreButton = document.getElementById('executeRestoreButton');
+            const closeBackupButton = document.getElementById('closeBackupButton');
+
+
+            // 버튼들
+            const step1Next = document.getElementById('step1Next');
+            const step2Next = document.getElementById('step2Next');
+            const step3Start = document.getElementById('step3Start');
+            const obKeys = document.querySelectorAll('.ob-key');
+
+            const todayLimitEl = document.getElementById('todayLimit');
+            const limitTickerEl = document.getElementById('limitTicker');
+            const daysRemainingEl = document.getElementById('daysRemaining');
+            const donutChartEl = document.getElementById('donutChart');
+            const valVarSpend = document.getElementById('valVarSpend');
+            const valTransport = document.getElementById('valTransport');
+            const valFixedForecast = document.getElementById('valFixedForecast');
+            const valFixedSpent = document.getElementById('valFixedSpent');
+            const valTotalLeft = document.getElementById('valTotalLeft');
+            const valTotalSpent = document.getElementById('valTotalSpent');
+            
+            const spendButton = document.getElementById('spendButton');
+            const incomeButton = document.getElementById('incomeButton');
+            const transportButton = document.getElementById('transportButton');
+            const fixedCostApprovalButton = document.getElementById('fixedCostApprovalButton');
+            const logHistoryEl = document.getElementById('logHistory');
+            const historyDateEl = document.getElementById('historyDate');
+            const historyDateTextEl = document.getElementById('historyDateText');
+            const prevDayButton = document.getElementById('prevDayButton');
+            const nextDayButton = document.getElementById('nextDayButton');
+            const fixedCostListContainer = document.getElementById('fixedCostListContainer');
+            const addFixedCostButton = document.getElementById('addFixedCostButton');
+            const editModal = document.getElementById('editModal');
+            const editLogId = document.getElementById('editLogId');
+            const typeToggleButtons = document.querySelectorAll('.type-toggle-btn');
+            const typeToggleContainer = document.getElementById('typeToggleContainer'); 
+            const calibrationNotice = document.getElementById('calibrationNotice'); 
+            const editAmount = document.getElementById('editAmount');
+            const editMemo = document.getElementById('editMemo');
+            const saveEditButton = document.getElementById('saveEditButton');
+            const deleteButton = document.getElementById('deleteButton');
+            const closeModalButton = document.getElementById('closeModalButton');
+            const amountModal = document.getElementById('amountModal');
+            const amountModalTitle = document.getElementById('amountModalTitle');
+            const amountInput = document.getElementById('amountInput'); 
+            const amountDisplay = document.getElementById('amountDisplay'); 
+            const amountKorean = document.getElementById('amountKorean'); 
+            const keypadButtons = document.querySelectorAll('.keypad-btn:not(.ob-key)'); 
+            const amountNextButton = document.getElementById('amountNextButton');
+            const amountCancelButton = document.getElementById('amountCancelButton');
+            const memoModal = document.getElementById('memoModal');
+            const memoInput = document.getElementById('memoInput');
+            const memoRecordButton = document.getElementById('memoRecordButton');
+            const memoCancelButton = document.getElementById('memoCancelButton');
+            const fixedCostModal = document.getElementById('fixedCostModal');
+            const fixedCostListPopup = document.getElementById('fixedCostListPopup');
+            const closeFixedCostModalButton = document.getElementById('closeFixedCostModalButton');
+            const versionText = document.getElementById('versionText');
+            const debugNavButton = document.getElementById('debugNavButton');
+            const virtualDateInput = document.getElementById('virtualDate');
+            const applyVirtualDateButton = document.getElementById('applyVirtualDateButton');
+            const resetVirtualDateButton = document.getElementById('resetVirtualDateButton');
+            const hideDebugButton = document.getElementById('hideDebugButton');
+            const factoryResetButton = document.getElementById('factoryResetButton');
+            const debugPrevDayBtn = document.getElementById('debugPrevDayBtn');
+            const debugNextDayBtn = document.getElementById('debugNextDayBtn');
+            const checkStatusButton = document.getElementById('checkStatusButton');
+            
+            // DB Key는 기존 데이터를 유지
+            let db = {
+                settings: { userName: "", totalAssets: 0, goalDate: '2026-04-01', startDate: '2025-11-18', fixedCosts: [ { name: "유튜브 프리미엄", amount: 14900, day: 15 }, { name: "SKT 통신 요금", amount: 21700, day: 10 }, { name: "대출 이자 (고정)", amount: 15340, day: 6 } ], debugMode: false, virtualDate: null, autoApproveFixed: false },
+                logs: [],
+                limitHistory: {},
+                tempLimit: 0,
+                tempLimitDate: "" 
+            };
+            let tempAmount = 0;
+            let tempType = ''; 
+            let debugTapCount = 0;
+            let isDataDirty = false; // 데이터 변경 추적 변수 (새로 추가됨)
+
+            function saveData() { 
+                localStorage.setItem('rollingBudgetDB_v43', JSON.stringify(db)); 
+                isDataDirty = false; // 저장 후에는 Dirty 상태 해제
+            }
+
+            function loadData() {
+                const storedDb = localStorage.getItem('rollingBudgetDB_v43'); // 기존 v43 DB 유지
+                if (storedDb) {
+                    db = JSON.parse(storedDb);
+                    if (db.settings.autoApproveFixed === undefined) db.settings.autoApproveFixed = false;
+                    if (db.settings.userName === undefined) db.settings.userName = "";
+                    
+                    onboardingScreen.style.display = 'none';
+                    appFrame.style.display = 'flex';
+                    initializeApp();
+                } else {
+                    onboardingScreen.style.display = 'flex';
+                    appFrame.style.display = 'none';
+                    showOnboardingStep(1);
+                    db.settings.startDate = getTodayString();
+                }
+            }
+
+            // 한글 금액 포맷 함수
+            function formatKoreanMoney(num) {
+                if (!num || num === 0) return "";
+                const unitWords = ['', '만', '억', '조'];
+                let result = "";
+                let splitUnit = 10000;
+                let currNum = num;
+                let i = 0;
+                while (currNum > 0) {
+                    let remainder = currNum % splitUnit;
+                    if (remainder > 0) {
+                        let prefix = result.length > 0 ? " " : "";
+                        result = `${remainder}${unitWords[i]}${prefix}${result}`;
+                    }
+                    currNum = Math.floor(currNum / splitUnit);
+                    i++;
+                }
+                return result;
+            }
+            
+            function showOnboardingStep(step) {
+                step1.classList.remove('active');
+                step2.classList.remove('active');
+                step3.classList.remove('active');
+                
+                if (step === 1) {
+                    step1.classList.add('active');
+                    userNameInput.focus();
+                } else if (step === 2) {
+                    step2.classList.add('active');
+                    displayUserName.textContent = userNameInput.value;
+                } else if (step === 3) {
+                    step3.classList.add('active');
+                }
+            }
+            
+            step1Next.addEventListener('click', () => {
+                const name = userNameInput.value.trim();
+                if (!name) { alert("이름을 입력해주세요."); return; }
+                db.settings.userName = name;
+                showOnboardingStep(2);
+            });
+            
+            // Step 2 키패드 로직
+            obKeys.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const key = btn.dataset.key;
+                    let val = startAssetInput.value;
+                    
+                    if (key === 'backspace') {
+                        val = val.slice(0, -1);
+                    } else if (val.length < 12) {
+                        val += key;
+                    }
+                    
+                    startAssetInput.value = val;
+                    if (val === '') startAssetDisplay.textContent = '0';
+                    else startAssetDisplay.textContent = Number(val).toLocaleString('ko-KR');
+                    
+                    // 한글 금액 업데이트
+                    startAssetKorean.textContent = formatKoreanMoney(Number(val));
+                });
+            });
+
+            step2Next.addEventListener('click', () => {
+                const asset = Number(startAssetInput.value);
+                if (asset <= 0) { 
+                    if (!confirm("자산을 0원으로 세팅하고 시작할까요?")) return; 
+                }
+                db.settings.totalAssets = asset;
+                showOnboardingStep(3);
+            });
+
+            step3Start.addEventListener('click', () => {
+                saveData(); 
+                onboardingScreen.style.display = 'none';
+                appFrame.style.display = 'flex';
+                initializeApp();
+            });
+
+            
+            function initializeApp() {
+                // --- [추가] 치명적 날짜 데이터 검증 및 복구 (Safety Net) ---
+                const today = getTodayString();
+                let dataModified = false;
+
+                // 1. startDate 검증 및 복구
+                if (!db.settings.startDate || db.settings.startDate.length < 10 || isNaN(parseDate(db.settings.startDate).getTime())) {
+                    console.warn("CRITICAL: startDate corrupted. Resetting to Today.");
+                    db.settings.startDate = today;
+                    dataModified = true;
+                }
+
+                // 2. goalDate 검증 및 복구
+                if (!db.settings.goalDate || db.settings.goalDate.length < 10 || isNaN(parseDate(db.settings.goalDate).getTime())) {
+                    console.warn("CRITICAL: goalDate corrupted. Resetting to 1 year ahead.");
+                    const nextYear = new Date(parseDate(today));
+                    nextYear.setFullYear(nextYear.getFullYear() + 1);
+                    db.settings.goalDate = getLocalYYYYMMDD(nextYear);
+                    dataModified = true;
+                }
+                
+                if (dataModified) {
+                    saveData();
+                }
+                // ----------------------------------------------------
+
+                if (db.settings.debugMode) { debugNavButton.style.display = 'flex'; }
+                if (db.settings.virtualDate) { virtualDateInput.value = db.settings.virtualDate; }
+                
+                processAutoApprove();
+                checkAndSnapshotLimit();
+                updateHistoryDate(getTodayString()); 
+                try { 
+                    updateDashboard(); 
+                } catch (e) { 
+                    alert("대시보드 계산 중 오류가 발생했습니다. 데이터를 확인해주세요: " + e.message); 
+                    console.error(e);
+                }
+            }
+
+
+            // [수정 1-1] 월말일 처리 로직을 포함하여 고정지출 결제일 확인하는 도우미 함수 (월말일 안전장치)
+            function getFixedCostDay(targetDate, paymentDay) {
+                if (paymentDay <= 28) return paymentDay;
+                
+                // 해당 월의 마지막 날짜를 구함
+                const lastDay = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0).getDate();
+                
+                // 결제일이 31일 등인데, 현재 달의 마지막 날보다 크다면, 마지막 날짜로 처리
+                return Math.min(paymentDay, lastDay);
+            }
+            
+            function processAutoApprove() {
+                if (!db.settings.autoApproveFixed) return; 
+                
+                const todayStr = getTodayString();
+                const todayDate = parseDate(todayStr);
+                const startDate = parseDate(db.settings.startDate);
+                
+                let autoApprovedCount = 0;
+                
+                // 1. 앱 시작일이 속한 달의 1일부터 체크 시작
+                let checkDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+                
+                while (checkDate <= todayDate) {
+                    const currentMonthYear = getLocalYYYYMMDD(checkDate).substring(0, 7);
+                    
+                    db.settings.fixedCosts.forEach(item => {
+                        const actualPaymentDay = getFixedCostDay(checkDate, item.day);
+                        
+                        // 해당 월의 결제일 계산
+                        const paymentDate = new Date(checkDate.getFullYear(), checkDate.getMonth(), actualPaymentDay);
+
+                        // 1. 이미 처리되었는지 확인 (로그 뒤지기)
+                        const isAlreadyPaid = db.logs.some(log => 
+                            log.id.startsWith(currentMonthYear) && 
+                            (log.fixed || 0) > 0 && 
+                            log.memo.includes(item.name)
+                        );
+
+                        if (!isAlreadyPaid) {
+                            // 2. 결제 조건 확인:
+                            if (paymentDate >= startDate && paymentDate <= todayDate) {
+                                
+                                // 로그 ID 생성 (현재 시간 기준)
+                                let newId = toLocalISOString(new Date());
+                                if (db.settings.virtualDate) { 
+                                    const now = new Date(); 
+                                    const vDate = parseDate(db.settings.virtualDate); 
+                                    vDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds()); 
+                                    newId = toLocalISOString(vDate); 
+                                }
+                                
+                                // 기록 추가 (메모에 월 정보 포함)
+                                const newLog = { 
+                                    id: newId, 
+                                    spend: 0, 
+                                    transport: 0, 
+                                    income: 0, 
+                                    fixed: item.amount, 
+                                    memo: `${item.name} (${currentMonthYear})` 
+                                }; 
+                                
+                                db.logs.push(newLog);
+                                autoApprovedCount++;
+                            }
+                        }
+                    });
+                    
+                    // 다음 달로 이동
+                    checkDate.setMonth(checkDate.getMonth() + 1);
+                }
+                
+                if (autoApprovedCount > 0) { 
+                    saveData(); 
+                    try { updateDashboard(); } catch(e) {}
+                    alert(`[자동 승인] 결제일이 도래한 고정지출 ${autoApprovedCount}건이 처리되었습니다.`); 
+                }
+            }
+
+            function calculateCurrentBalance() { let balance = db.settings.totalAssets; db.logs.forEach(log => { const spend = (Number(log.spend) || 0) + (Number(log.transport) || 0) + (Number(log.fixed) || 0); const income = (Number(log.income) || 0); const calibration = (Number(log.calibration) || 0); balance = balance - spend + income + calibration; }); return balance; }
+            
+            // --- 디버그 및 기본 설정 로직 (안정적인 function 문법 사용) ---
+            versionText.addEventListener('click', function() { debugTapCount++; if (debugTapCount >= 5) { debugTapCount = 0; if (confirm('디버그 모드를 활성화하시겠습니까?')) { db.settings.debugMode = true; saveData(); debugNavButton.style.display = 'flex'; alert('디버그 모드가 활성화되었습니다. 하단 탭을 확인하세요.'); } } });
+            applyVirtualDateButton.addEventListener('click', function() { const vDate = virtualDateInput.value; if (!vDate) { alert('날짜를 선택해주세요.'); return; } db.settings.virtualDate = vDate; saveData(); alert(`시간 설정 완료. 현재 날짜가 ${vDate}로 인식됩니다.`); location.reload(); });
+            resetVirtualDateButton.addEventListener('click', function() { db.settings.virtualDate = null; virtualDateInput.value = ''; saveData(); alert('현실 시간으로 복귀했습니다.'); location.reload(); });
+            hideDebugButton.addEventListener('click', function() { db.settings.debugMode = false; saveData(); debugNavButton.style.display = 'none'; showTab('tab-record'); alert('디버그 모드가 숨겨졌습니다.'); });
+            factoryResetButton.addEventListener('click', function() { if (confirm('마지막 경고: 모든 데이터를 삭제하고 처음 상태로 되돌립니다.\n돌이킬 수 없는 작업입니다.\n정말 실행하시겠습니까?')) { localStorage.removeItem('rollingBudgetDB_v43'); location.reload(); } });
+            debugPrevDayBtn.addEventListener('click', function() { const current = parseDate(getTodayString()); current.setDate(current.getDate() - 1); const prevDate = getLocalYYYYMMDD(current); db.settings.virtualDate = prevDate; saveData(); location.reload(); });
+            debugNextDayBtn.addEventListener('click', function() { const current = parseDate(getTodayString()); current.setDate(current.getDate() + 1); const nextDate = getLocalYYYYMMDD(current); db.settings.virtualDate = nextDate; saveData(); location.reload(); });
+            checkStatusButton.addEventListener('click', function() { const status = `오늘: ${getTodayString()}\n자산: ${db.settings.totalAssets}\n목표일: ${db.settings.goalDate}\n가상날짜: ${db.settings.virtualDate}\n남은일수: ${dateDiffInDays(getTodayString(), db.settings.goalDate)}`; alert(status); });
+            
+            // --- 고정지출 UI 로직 (팝업으로 이동) ---
+            function renderFixedCosts() { fixedCostListContainer.innerHTML = ''; db.settings.fixedCosts.forEach(item => { addFixedCostRow(item.name, item.amount, item.day); }); }
+            function addFixedCostRow(name = "", amount = "", day = "") { const itemDiv = document.createElement('div'); itemDiv.className = 'form-group fixed-cost-item'; itemDiv.innerHTML = `<input type="text" class="fixed-cost-name" placeholder="항목 이름" value="${name}"><input type="number" class="fixed-cost-amount amount" placeholder="월 금액" value="${amount}"><input type="number" class="fixed-cost-day day" placeholder="결제일" min="1" max="31" value="${day}"><button type="button" class="delete-cost-button">삭제</button>`; fixedCostListContainer.appendChild(itemDiv); }
+            addFixedCostButton.addEventListener('click', () => { addFixedCostRow(); isDataDirty = true; }); // 데이터 변경 추적 추가
+            fixedCostListContainer.addEventListener('click', (e) => { if (e.target.classList.contains('delete-cost-button')) { e.target.parentElement.remove(); isDataDirty = true; } });
+            
+            // --- 날짜/시간 유틸리티 ---
+            function parseDate(dateStr) { if(!dateStr) return new Date(); const parts = dateStr.split('-'); return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])); }
+            function getTodayString() { if (db.settings.virtualDate) return db.settings.virtualDate; const d = new Date(); const offset = d.getTimezoneOffset() * 60000; return new Date(d.getTime() - offset).toISOString().split('T')[0]; }
+            function getFormattedDate(dateStr) { const parts = dateStr.split('-'); return `${parts[0]}년 ${Number(parts[1])}월 ${Number(parts[2])}일`; }
+            function dateDiffInDays(dateStr1, dateStr2) { const d1 = parseDate(dateStr1); const d2 = parseDate(dateStr2); const diffTime = d2.getTime() - d1.getTime(); return Math.ceil(diffTime / (1000 * 60 * 60 * 24)); }
+            function getLocalYYYYMMDD(date) { const offset = date.getTimezoneOffset() * 60000; return new Date(date.getTime() - offset).toISOString().split('T')[0]; }
+            function toLocalISOString(date) {
+                const offset = date.getTimezoneOffset() * 60000;
+                const localDate = new Date(date.getTime() - offset);
+                return localDate.toISOString().slice(0, -1);
+            }
+            function updateHistoryDate(dateStr) { historyDateEl.value = dateStr; historyDateTextEl.textContent = getFormattedDate(dateStr); renderLogHistory(); }
+            
+            historyDateTextEl.addEventListener('click', () => { try { historyDateEl.showPicker(); } catch (error) { console.error("showPicker() failed.", error); } });
+            historyDateEl.addEventListener('input', () => { updateHistoryDate(historyDateEl.value); });
+            prevDayButton.addEventListener('click', () => { const current = parseDate(historyDateEl.value); current.setDate(current.getDate() - 1); updateHistoryDate(getLocalYYYYMMDD(current)); });
+            nextDayButton.addEventListener('click', () => { const current = parseDate(historyDateEl.value); current.setDate(current.getDate() + 1); updateHistoryDate(getLocalYYYYMMDD(current)); });
+            
+            function getTodayTotalVarSpend(dateStr) { let spendSum = 0; const logs = db.logs.filter(log => log.id.startsWith(dateStr)); logs.forEach(log => { spendSum += (Number(log.spend) || 0); spendSum += (Number(log.transport) || 0); }); return spendSum; }
+            function checkAndSnapshotLimit() { const todayStr = getTodayString(); if (!db.tempLimitDate) db.tempLimitDate = todayStr; if (db.tempLimitDate !== todayStr) { db.limitHistory[db.tempLimitDate] = db.tempLimit; db.tempLimitDate = todayStr; saveData(); } }
+            
+            function updateDashboard() {
+                try {
+                    const todayStr = getTodayString(); const goalDate = db.settings.goalDate; const startDate = db.settings.startDate; 
+                    const totalPeriodDays = dateDiffInDays(startDate, goalDate); const totalMonths = totalPeriodDays / (365.25 / 12); 
+                    let monthlyFixedCost = 0; db.settings.fixedCosts.forEach(item => { monthlyFixedCost += Number(item.amount) || 0; }); const totalFixedCostForecast = monthlyFixedCost * totalMonths; 
+                    
+                    // 1. 모든 수치 합산
+                    let totalVariableSpendingLogs = 0; 
+                    let displayRedSpend = 0; 
+                    let displayYellowSpend = 0; 
+                    let totalFixedSpendingLogs = 0; 
+                    let totalIncomeLogs = 0; 
+                    let totalCalibrationLogs = 0;
+
+                    db.logs.forEach(log => { 
+                        // 변동지출 합
+                        totalVariableSpendingLogs += (Number(log.spend) || 0) + (Number(log.transport) || 0); 
+                        displayRedSpend += (Number(log.spend) || 0); 
+                        displayYellowSpend += (Number(log.transport) || 0); 
+                        
+                        // 고정지출/수입/보정 합
+                        totalFixedSpendingLogs += (Number(log.fixed) || 0); 
+                        totalIncomeLogs += (Number(log.income) || 0); 
+                        totalCalibrationLogs += (Number(log.calibration) || 0);
+                    });
+
+                    // 2. 핵심 변수 계산
+                    const initialAssets = db.settings.totalAssets;
+                    const remainingTotalAssets = initialAssets + totalIncomeLogs + totalCalibrationLogs - (totalVariableSpendingLogs + totalFixedSpendingLogs);
+                    const totalActualSpend = totalVariableSpendingLogs + totalFixedSpendingLogs;
+
+                    // 3. 도넛 차트를 위한 기준(Total Base) 설정
+                    let chartTotalBase = initialAssets + totalIncomeLogs + totalCalibrationLogs;
+                    if (chartTotalBase <= 0) chartTotalBase = 1; 
+
+                    // 4. 차트 각도 계산 (360도 기준)
+                    const degVarSpend = (displayRedSpend / chartTotalBase) * 360;
+                    const degTransport = (displayYellowSpend / chartTotalBase) * 360;
+                    const degFixedSpent = (totalFixedSpendingLogs / chartTotalBase) * 360;
+                    
+                    let remainingFixedForecast = totalFixedCostForecast - totalFixedSpendingLogs;
+                    if (remainingFixedForecast < 0) remainingFixedForecast = 0;
+                    const degFixedRemain = (remainingFixedForecast / chartTotalBase) * 360;
+                    
+                    const degFixedTotal = degFixedSpent + degFixedRemain; 
+
+                    // CSS 변수 업데이트
+                    donutChartEl.style.setProperty('--deg-var-spend', `${degVarSpend}deg`);
+                    donutChartEl.style.setProperty('--deg-transport', `${degTransport}deg`);
+                    donutChartEl.style.setProperty('--deg-fixed-spent', `${degFixedSpent}deg`);
+                    donutChartEl.style.setProperty('--deg-fixed-remain', `${degFixedRemain}deg`);
+                    donutChartEl.style.setProperty('--deg-fixed-total', `${degFixedTotal}deg`);
+
+                    // 5. 일일 한도(Limit) 계산 로직
+                    let daysRemaining = dateDiffInDays(todayStr, goalDate); if (daysRemaining < 0) daysRemaining = 0; 
+                    const remainingVariableBudget = remainingTotalAssets - remainingFixedForecast;
+                    const todayVarSpend = getTodayTotalVarSpend(todayStr);
+                    const budgetStartOfToday = remainingVariableBudget + todayVarSpend;
+
+                    let limitStartOfToday = 0; 
+                    if (daysRemaining > 0) { limitStartOfToday = budgetStartOfToday / daysRemaining; }
+                    
+                    db.tempLimit = limitStartOfToday; saveData(); 
+                    
+                    const current = parseDate(todayStr); current.setDate(current.getDate() - 1); const yesterdayStr = getLocalYYYYMMDD(current);
+                    const limitYesterday = db.limitHistory[yesterdayStr] || 0;
+                    let limitDiff = 0; if (limitYesterday > 0) { limitDiff = limitStartOfToday - limitYesterday; }
+                    
+                    // 6. 화면 업데이트
+                    const formatter = new Intl.NumberFormat('ko-KR'); 
+                    todayLimitEl.textContent = `${formatter.format(Math.floor(limitStartOfToday))}원`;
+                    
+                    const diffVal = Math.floor(limitDiff);
+                    if (diffVal > 0) { limitTickerEl.innerHTML = `(▲ ${formatter.format(diffVal)}원)`; limitTickerEl.className = 'ticker-up'; } 
+                    else if (diffVal < 0) { limitTickerEl.innerHTML = `(▼ ${formatter.format(Math.abs(diffVal))}원)`; limitTickerEl.className = 'ticker-down'; } 
+                    else { limitTickerEl.innerHTML = `(변동없음)`; limitTickerEl.className = 'ticker-same'; }
+                    
+                    daysRemainingEl.textContent = `${daysRemaining}`;
+
+                    valVarSpend.textContent = `${formatter.format(displayRedSpend)}원`; 
+                    valTransport.textContent = `${formatter.format(displayYellowSpend)}원`; 
+                    valFixedForecast.textContent = `${formatter.format(Math.floor(totalFixedCostForecast))}원`; 
+                    valFixedSpent.textContent = `${formatter.format(totalFixedSpendingLogs)}원`; 
+                    
+                    valTotalLeft.textContent = `${formatter.format(Math.floor(remainingTotalAssets))}원`; 
+                    valTotalSpent.textContent = `${formatter.format(totalActualSpend)}원`;
+                    
+                    renderLogHistory(); 
+                    checkPendingFixedCosts(todayStr);
+                } catch(e) { console.error(e); alert("계산 오류 발생: " + e.message); }
+            }
+
+            // [수정 5] 고정지출 상태 확인 로직 개편 (스캐너 방식)
+            function checkPendingFixedCosts(todayStr) { 
+                const todayDate = parseDate(todayStr);
+                const startDate = parseDate(db.settings.startDate);
+                
+                let overdueCount = 0;   let dueTodayCount = 0;  let totalDueTodayAmount = 0;
+                let nearestItem = null; let minDaysLeft = 9999; 
+
+                db.settings.fixedCosts.forEach(item => {
+                    const thisMonthDay = getFixedCostDay(todayDate, item.day);
+                    const thisMonthDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), thisMonthDay);
+                    const thisMonthStr = getLocalYYYYMMDD(thisMonthDate);
+                    const thisMonthPrefix = thisMonthStr.substring(0, 7);
+
+                    const isPaidThisMonth = db.logs.some(log => 
+                        log.id.startsWith(thisMonthPrefix) && (log.fixed || 0) > 0 && (log.memo.includes(item.name))
+                    );
+
+                    // --- 상태 판단 ---
+                    if (thisMonthDate < todayDate) { // A. [과거]
+                        if (thisMonthDate >= startDate && !isPaidThisMonth) { overdueCount++; }
+                        calcNextDueDate(item, todayDate, 1);
+                    } else if (thisMonthStr === todayStr) { // B. [오늘]
+                        if (!isPaidThisMonth) {
+                            dueTodayCount++;
+                            totalDueTodayAmount += Number(item.amount);
+                        } else {
+                            calcNextDueDate(item, todayDate, 1);
+                        }
+                    } else { // C. [미래]
+                        if (!isPaidThisMonth) {
+                            const diff = dateDiffInDays(todayStr, thisMonthStr);
+                            if (diff < minDaysLeft) {
+                                minDaysLeft = diff;
+                                nearestItem = { name: item.name, daysLeft: diff, date: thisMonthStr };
+                            }
+                        } else {
+                             calcNextDueDate(item, todayDate, 1);
+                        }
+                    }
+                });
+
+                function calcNextDueDate(item, baseDate, addMonth) {
+                    const nextMonth = new Date(baseDate.getFullYear(), baseDate.getMonth() + addMonth, 1);
+                    const nextDay = getFixedCostDay(nextMonth, item.day);
+                    const nextDate = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), nextDay);
+                    const nextDateStr = getLocalYYYYMMDD(nextDate);
+                    
+                    const diff = dateDiffInDays(todayStr, nextDateStr);
+                    if (diff > 0 && diff < minDaysLeft) {
+                        minDaysLeft = diff;
+                        nearestItem = { name: item.name, daysLeft: diff, date: nextDateStr };
+                    }
+                }
+
+                // --- 버튼 UI 업데이트 ---
+                const formatter = new Intl.NumberFormat('ko-KR');
+                if (overdueCount > 0) { 
+                    fixedCostApprovalButton.innerHTML = `<i class="fas fa-exclamation-triangle"></i> 🚨 미승인 결제 (${overdueCount}건) - 연체됨!`; 
+                    fixedCostApprovalButton.className = "full-width overdue"; 
+                } else if (dueTodayCount > 0) { 
+                    if (db.settings.autoApproveFixed) { 
+                        fixedCostApprovalButton.innerHTML = `<i class="fas fa-robot"></i> 금일 ${dueTodayCount}건(${formatter.format(totalDueTodayAmount)}원) 자동 처리 예정<br><small>터치하여 수정 가능 • 자동 처리 ON</small>`; 
+                        fixedCostApprovalButton.className = "full-width auto-active"; 
+                    } else { 
+                        fixedCostApprovalButton.innerHTML = `<i class="fas fa-check-circle"></i> 고정지출 결제 승인 (${dueTodayCount}건)`; 
+                        fixedCostApprovalButton.className = "full-width manual-active"; 
+                    } 
+                } else if (nearestItem) { 
+                    fixedCostApprovalButton.innerHTML = `<i class="far fa-clock"></i> 다음: ${nearestItem.name} (D-${nearestItem.daysLeft})`; 
+                    fixedCostApprovalButton.className = "full-width"; 
+                    fixedCostApprovalButton.style.backgroundColor = "#444"; fixedCostApprovalButton.style.color = "#fff"; 
+                } else { 
+                    fixedCostApprovalButton.innerHTML = `<i class="fas fa-check"></i> 모든 고정지출 완료`; 
+                    fixedCostApprovalButton.className = "full-width"; 
+                    fixedCostApprovalButton.style.backgroundColor = "#333"; fixedCostApprovalButton.style.color = "#888"; 
+                } 
+                fixedCostApprovalButton.onclick = showFixedCostPopup;
+            }
+            
+            // [수정 5-1] 팝업 표시 로직 (이번 달 및 연체만 깔끔하게 표시)
+            function showFixedCostPopup() { 
+                const todayStr = getTodayString(); const todayDate = parseDate(todayStr); const startDate = parseDate(db.settings.startDate);
+                fixedCostListPopup.innerHTML = ''; let listItems = []; 
+                db.settings.fixedCosts.forEach(item => {
+                    const thisMonthDay = getFixedCostDay(todayDate, item.day);
+                    const thisMonthDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), thisMonthDay);
+                    const thisMonthStr = getLocalYYYYMMDD(thisMonthDate);
+                    const thisMonthPrefix = thisMonthStr.substring(0, 7);
+                    const isPaidThisMonth = db.logs.some(log => log.id.startsWith(thisMonthPrefix) && (log.fixed || 0) > 0 && (log.memo.includes(item.name)));
+                    let status = ""; let ddayText = ""; let sortScore = 0; 
+
+                    if (thisMonthDate < todayDate) {
+                        if (thisMonthDate >= startDate && !isPaidThisMonth) {
+                            status = "overdue"; const daysOver = dateDiffInDays(thisMonthStr, todayStr); ddayText = `연체 ${daysOver}일`; sortScore = -100;
+                        }
+                    } else if (thisMonthStr === todayStr) {
+                        if (!isPaidThisMonth) { status = "dueToday"; ddayText = "오늘 예정"; sortScore = -50; }
+                    } else {
+                        if (!isPaidThisMonth) { status = "upcoming"; const daysLeft = dateDiffInDays(todayStr, thisMonthStr); ddayText = `${daysLeft}일 후`; sortScore = daysLeft; }
+                    }
+
+                    if (status !== "") {
+                        listItems.push({ name: item.name, amount: item.amount, status: status, ddayText: ddayText, sortScore: sortScore, logPrefix: thisMonthPrefix });
+                    }
+                });
+                
+                listItems.sort((a, b) => a.sortScore - b.sortScore);
+                
+                if (listItems.length === 0) { 
+                    fixedCostListPopup.innerHTML = '<p style="text-align:center; color: var(--text-color-light); margin-top:20px;">(이번 달 승인 대기 중인 항목이 없습니다)</p>'; 
+                } else { 
+                    listItems.forEach(item => { 
+                        const itemDiv = document.createElement('div'); itemDiv.className = 'fixed-cost-list-item'; 
+                        let nameStyle = "";
+                        if (item.status === 'overdue') nameStyle = "color: var(--danger-color); font-weight:bold;";
+                        else if (item.status === 'dueToday') nameStyle = "color: var(--success-color); font-weight:bold;";
+                        
+                        itemDiv.innerHTML = `
+                            <div style="display:flex; flex-direction:column;">
+                                <span style="${nameStyle}">${item.name}</span>
+                                <span style="font-size:0.8rem; color:#888;">${item.ddayText} • ${Number(item.amount).toLocaleString()}원</span>
+                            </div>
+                            <div style="display:flex; align-items:center;">
+                                <button type="button" class="edit-fixed-cost-btn" data-name="${item.name}" data-amount="${item.amount}"><i class="fas fa-pen"></i></button>
+                                <button type="button" class="approve-fixed-cost" data-name="${item.name}" data-amount="${item.amount}" data-month-prefix="${item.logPrefix}">승인</button>
+                            </div>`; 
+                        fixedCostListPopup.appendChild(itemDiv); 
+                    }); 
+                } 
+                fixedCostModal.style.display = 'flex'; 
+            }
+            
+            closeFixedCostModalButton.addEventListener('click', () => { fixedCostModal.style.display = 'none'; });
+            fixedCostListPopup.addEventListener('click', (e) => {
+                const btn = e.target.closest('button');
+                if (!btn || !btn.dataset.name) return;
+                
+                const originalName = btn.dataset.name;
+                const originalAmount = Number(btn.dataset.amount);
+                const logPrefix = btn.dataset.monthPrefix || getTodayString().substring(0, 7);
+
+                if (btn.classList.contains('approve-fixed-cost')) {
+                    const inputField = btn.parentElement.querySelector('.fixed-cost-edit-input');
+                    let finalAmount = originalAmount;
+                    if (inputField) { finalAmount = Number(inputField.value); if (finalAmount <= 0) { alert("금액을 확인해주세요."); return; } }
+                    
+                    let newId = toLocalISOString(new Date());
+                    if (db.settings.virtualDate) { const now = new Date(); const vDate = parseDate(db.settings.virtualDate); vDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds()); newId = toLocalISOString(vDate); }
+                    
+                    // 승인 로그는 해당 월 정보와 함께 기록 (연체 방지용)
+                    const newLog = { 
+                        id: newId, 
+                        spend: 0, 
+                        transport: 0, 
+                        income: 0, 
+                        fixed: finalAmount, 
+                        memo: originalName + ` (${logPrefix})` 
+                    };
+                    
+                    db.logs.push(newLog); 
+                    saveData(); 
+                    
+                    // 팝업에서 항목 제거
+                    const listItem = btn.closest('.fixed-cost-list-item');
+                    if(listItem) listItem.remove();
+
+                    // 팝업이 비었으면 닫고, 대시보드 업데이트
+                    if (fixedCostListPopup.children.length === 0) { fixedCostModal.style.display = 'none'; }
+                    
+                    updateHistoryDate(getTodayString()); 
+                    updateDashboard(); 
+                    alert(`'${originalName}' (${logPrefix}) (${finalAmount.toLocaleString()}원) 승인 완료.`);
+                    
+                } else if (btn.classList.contains('edit-fixed-cost-btn')) {
+                    const parentDiv = btn.parentElement; 
+                    if (parentDiv.querySelector('.fixed-cost-edit-input')) return;
+                    const input = document.createElement('input'); 
+                    input.type = 'number'; 
+                    input.value = originalAmount; 
+                    input.className = 'fixed-cost-edit-input';
+                    btn.style.display = 'none'; 
+                    parentDiv.insertBefore(input, parentDiv.querySelector('.approve-fixed-cost')); 
+                    input.focus();
+                }
+            });
+
+
+            function renderLogHistory() { logHistoryEl.innerHTML = ''; const selectedDate = historyDateEl.value; const filteredLogs = db.logs.filter(log => log.id.startsWith(selectedDate)); if (filteredLogs.length === 0) { logHistoryEl.innerHTML = '<p style="text-align:center; color: var(--text-color-light);">(기록이 없습니다)</p>'; return; } filteredLogs.forEach(log => { const entry = document.createElement('div'); entry.className = 'log-entry'; entry.dataset.id = log.id; const spendValue = Number(log.spend) || 0; const transportValue = Number(log.transport) || 0; const incomeValue = Number(log.income) || 0; const fixedValue = Number(log.fixed) || 0; const calibrationValue = Number(log.calibration) || 0; const logTime = new Date(log.id).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }); let amountText = ''; if (spendValue > 0) { amountText = `<span class="log-spend">-${spendValue.toLocaleString()}원</span>`; } else if (transportValue > 0) { amountText = `<span class="log-transport">-${transportValue.toLocaleString()}원</span>`; } else if (fixedValue > 0) { amountText = `<span class="log-fixed">-${fixedValue.toLocaleString()}원</span>`; } else if (incomeValue > 0) { amountText = `<span class="log-income">+${incomeValue.toLocaleString()}원</span>`; } else if (calibrationValue !== 0) { const sign = calibrationValue > 0 ? '+' : ''; amountText = `<span class="log-calibration">(보정) ${sign}${calibrationValue.toLocaleString()}원</span>`; } entry.innerHTML = `<div class="log-time">${logTime}</div><div class="log-details">${amountText}<span class="log-memo">${log.memo || ''}</span></div>`; logHistoryEl.appendChild(entry); }); }
+            logHistoryEl.addEventListener('click', (e) => { const logEntry = e.target.closest('.log-entry'); if (!logEntry) return; const logId = logEntry.dataset.id; openEditModal(logId); });
+            function openEditModal(logId) { const log = db.logs.find(l => l.id === logId); if (!log) return; editLogId.value = log.id; if (log.calibration !== undefined && log.calibration !== 0) { typeToggleContainer.style.display = 'none'; calibrationNotice.style.display = 'block'; editAmount.value = log.calibration; } else { typeToggleContainer.style.display = 'block'; calibrationNotice.style.display = 'none'; let type = 'spend'; let amount = 0; if (log.transport > 0) { type = 'transport'; amount = log.transport; } else if (log.income > 0) { type = 'income'; amount = log.income; } else if (log.fixed > 0) { type = 'fixed'; amount = log.fixed; } else { type = 'spend'; amount = log.spend; } setActiveToggle(type); editAmount.value = amount; } editMemo.value = log.memo || ''; editModal.style.display = 'flex'; }
+            function setActiveToggle(type) { typeToggleButtons.forEach(btn => { btn.classList.remove('active', 'spend', 'transport', 'income', 'fixed'); if (btn.dataset.type === type) { btn.classList.add('active', type); } }); }
+            typeToggleButtons.forEach(btn => { btn.addEventListener('click', (e) => { setActiveToggle(e.target.dataset.type); isDataDirty = true; }); });
+            closeModalButton.addEventListener('click', () => editModal.style.display = 'none');
+            deleteButton.addEventListener('click', () => { 
+                if (!confirm('이 기록을 정말로 삭제하시겠습니까?')) return; 
+                db.logs = db.logs.filter(l => l.id !== editLogId.value); 
+                saveData(); 
+                updateDashboard(); 
+                editModal.style.display = 'none'; 
+                alert('기록이 삭제되었습니다.'); 
+            });
+            saveEditButton.addEventListener('click', () => { 
+                const logIndex = db.logs.findIndex(l => l.id === editLogId.value); if (logIndex === -1) return; 
+                const newAmount = Number(editAmount.value) || 0; 
+                const newMemo = editMemo.value || '기록 없음'; 
+                
+                if (db.logs[logIndex].calibration !== undefined && db.logs[logIndex].calibration !== 0) { 
+                    db.logs[logIndex].calibration = newAmount; 
+                } else { 
+                    const activeType = document.querySelector('.type-toggle-btn.active').dataset.type; 
+                    db.logs[logIndex].spend = 0; db.logs[logIndex].transport = 0; db.logs[logIndex].income = 0; db.logs[logIndex].fixed = 0; 
+                    if (activeType === 'spend') { db.logs[logIndex].spend = newAmount; } 
+                    else if (activeType === 'transport') { db.logs[logIndex].transport = newAmount; } 
+                    else if (activeType === 'income') { db.logs[logIndex].income = newAmount; } 
+                    else if (activeType === 'fixed') { db.logs[logIndex].fixed = newAmount; } 
+                } 
+                
+                db.logs[logIndex].memo = newMemo; 
+                saveData(); 
+                updateDashboard(); 
+                editModal.style.display = 'none'; 
+                alert('기록이 수정되었습니다.'); 
+            });
+            spendButton.addEventListener('click', () => openAmountModal('spend'));
+            incomeButton.addEventListener('click', () => openAmountModal('income'));
+            transportButton.addEventListener('click', () => openAmountModal('transport'));
+            function openAmountModal(type) { 
+                tempType = type; tempAmount = 0; amountInput.value = ''; updateAmountDisplay(); 
+                if (type === 'spend') amountModalTitle.textContent = '지출 금액 입력'; else if (type === 'income') amountModalTitle.textContent = '수입 금액 입력'; else amountModalTitle.textContent = '교통비 금액 입력'; 
+                amountModal.style.display = 'flex'; 
+            }
+            amountDisplay.addEventListener('click', () => { amountInput.focus(); });
+            keypadButtons.forEach(button => { 
+                button.addEventListener('click', () => { 
+                    const key = button.dataset.key; let currentValue = amountInput.value; 
+                    if (key === 'backspace') { currentValue = currentValue.slice(0, -1); } else if (currentValue.length < 12) { currentValue += key; } 
+                    amountInput.value = currentValue; updateAmountDisplay(); 
+                }); 
+            });
+            amountInput.addEventListener('input', () => { updateAmountDisplay(); isDataDirty = true; });
+            
+            function updateAmountDisplay() { 
+                let value = amountInput.value; value = value.replace(/[^0-9]/g, ''); amountInput.value = value; 
+                if (value === '') { amountDisplay.textContent = '0'; } else { amountDisplay.textContent = Number(value).toLocaleString('ko-KR'); } 
+                amountKorean.textContent = formatKoreanMoney(Number(value));
+            }
+            
+            amountCancelButton.addEventListener('click', () => amountModal.style.display = 'none');
+            amountNextButton.addEventListener('click', () => { const amount = Number(amountInput.value); if (amount <= 0) { alert('금액을 1원 이상 입력해주세요.'); return; } tempAmount = amount; amountModal.style.display = 'none'; openMemoModal(); });
+            function openMemoModal() { memoInput.value = ''; memoModal.style.display = 'flex'; setTimeout(() => { memoInput.blur(); }, 50); }
+            memoCancelButton.addEventListener('click', () => memoModal.style.display = 'none');
+            
+            memoRecordButton.addEventListener('click', () => { 
+                const memo = memoInput.value || '기록 없음'; 
+                let newId = toLocalISOString(new Date());
+                if (db.settings.virtualDate) { 
+                    const now = new Date(); 
+                    const vDate = parseDate(db.settings.virtualDate); 
+                    vDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds()); 
+                    newId = toLocalISOString(vDate); 
+                } 
+                const newLog = { id: newId, spend: 0, transport: 0, income: 0, fixed: 0, memo: memo };
+                if (tempType === 'spend') newLog.spend = tempAmount; else if (tempType === 'income') newLog.income = tempAmount; else if (tempType === 'transport') newLog.transport = tempAmount; 
+                db.logs.push(newLog); saveData(); updateHistoryDate(getTodayString()); updateDashboard(); memoModal.style.display = 'none'; alert('기록되었습니다!'); showTab('tab-history'); 
+            });
+
+            // --- [신규 UI] 설정 팝업 이벤트 리스너 ---
+
+            // 1. 월급일 관리 팝업
+            menuPayday.addEventListener('click', () => {
+                settingGoalDate.value = db.settings.goalDate;
+                settingModalPayday.style.display = 'flex';
+                settingGoalDate.onchange = () => isDataDirty = true; // 데이터 변경 추적 추가
+            });
+            closePaydayButton.addEventListener('click', () => settingModalPayday.style.display = 'none');
+            savePaydayButton.addEventListener('click', () => {
+                if (!settingGoalDate.value) { alert("날짜를 선택해주세요."); return; }
+                db.settings.goalDate = settingGoalDate.value;
+                saveData();
+                updateDashboard();
+                settingModalPayday.style.display = 'none';
+                alert("월급일 설정이 저장되었습니다.");
+            });
+
+
+            // 2. 고정지출 관리 팝업
+            menuFixedCost.addEventListener('click', () => {
+                renderFixedCosts(); 
+                settingAutoApproveToggle.checked = db.settings.autoApproveFixed;
+                settingModalFixed.style.display = 'flex';
+                // 입력 필드 변경 시 dirty 상태로 변경
+                fixedCostListContainer.querySelectorAll('input').forEach(input => {
+                    input.oninput = () => isDataDirty = true;
+                });
+                settingAutoApproveToggle.onchange = () => isDataDirty = true;
+            });
+            closeFixedCostButton.addEventListener('click', () => settingModalFixed.style.display = 'none');
+            saveFixedCostButton.addEventListener('click', () => {
+                const newFixedCosts = []; 
+                const costItemRows = fixedCostListContainer.querySelectorAll('.fixed-cost-item'); 
+                
+                costItemRows.forEach(row => { 
+                    const name = row.querySelector('.fixed-cost-name').value; 
+                    const amount = Number(row.querySelector('.fixed-cost-amount').value); 
+                    const day = Number(row.querySelector('.fixed-cost-day').value); 
+                    
+                    if (name && amount > 0 && day > 0 && day <= 31) { 
+                        newFixedCosts.push({ name: name, amount: amount, day: day }); 
+                    } 
+                }); 
+
+                db.settings.fixedCosts = newFixedCosts; 
+                const wasAutoApprove = db.settings.autoApproveFixed;
+                db.settings.autoApproveFixed = settingAutoApproveToggle.checked;
+
+                saveData();
+                
+                if (db.settings.autoApproveFixed && !wasAutoApprove) {
+                    processAutoApprove(); 
+                } else {
+                     try { updateDashboard(); } catch(e) {}
+                }
+                
+                settingModalFixed.style.display = 'none';
+                alert("고정지출 설정이 저장되었습니다.");
+            });
+
+
+            // 3. 잔액 보정 팝업
+            menuCalibration.addEventListener('click', () => {
+                const currentBalance = calculateCurrentBalance();
+                popupCurrentBalance.textContent = Number(currentBalance).toLocaleString('ko-KR') + '원';
+                popupActualBalanceInput.value = '';
+                settingModalCalibration.style.display = 'flex';
+                popupActualBalanceInput.oninput = () => isDataDirty = true;
+            });
+            closeCalibrationButton.addEventListener('click', () => settingModalCalibration.style.display = 'none');
+            executeCalibrationButton.addEventListener('click', () => {
+                const actualBalance = Number(popupActualBalanceInput.value); 
+                if (popupActualBalanceInput.value === '' || actualBalance < 0) { alert('올바른 금액을 입력해주세요.'); return; } 
+                
+                const currentAppBalance = calculateCurrentBalance(); 
+                const diff = actualBalance - currentAppBalance; 
+                
+                if (diff === 0) { alert('오차가 없습니다.'); return; } 
+
+                if (!confirm(`앱 잔액: ${currentAppBalance.toLocaleString()}원\n실 잔액: ${actualBalance.toLocaleString()}원\n\n차액 ${diff.toLocaleString()}원을 보정하시겠습니까?`)) return;
+
+                let newId = toLocalISOString(new Date());
+                if (db.settings.virtualDate) { 
+                    const now = new Date(); 
+                    const vDate = parseDate(db.settings.virtualDate); 
+                    vDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds()); 
+                    newId = toLocalISOString(vDate); 
+                }
+                
+                const newLog = { id: newId, spend: 0, transport: 0, income: 0, fixed: 0, calibration: diff, memo: '잔액 오차 보정' }; 
+                db.logs.push(newLog); 
+                saveData(); 
+                
+                updateDashboard(); 
+                
+                settingModalCalibration.style.display = 'none'; 
+                alert('보정이 완료되었습니다.'); 
+            });
+            
+            // 4. 백업 및 복원 팝업 로직
+            menuBackupRestore.addEventListener('click', () => {
+                restoreFileInput.value = ''; // 파일 입력 초기화
+                settingModalBackupRestore.style.display = 'flex';
+            });
+
+            closeBackupButton.addEventListener('click', () => {
+                settingModalBackupRestore.style.display = 'none';
+            });
+            
+            // 1.1. 백업 파일 생성 및 다운로드 (이전의 1.3)
+            createBackupButton.addEventListener('click', createBackupFile);
+
+            function createBackupFile() {
+                const dataStr = JSON.stringify(db, null, 2);
+                const blob = new Blob([dataStr], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                
+                const todayStr = getLocalYYYYMMDD(new Date()).replace(/-/g, '');
+                const filename = `budget_backup_${todayStr}.json`;
+
+                // 다운로드 링크 생성 및 클릭
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                URL.revokeObjectURL(url);
+                alert(`백업 파일 '${filename}' 다운로드가 시작되었습니다.`);
+            }
+
+            // 1.2. 복원하기 (이전의 1.4)
+            executeRestoreButton.addEventListener('click', () => {
+                const file = restoreFileInput.files[0];
+                if (!file) {
+                    alert('복원할 백업 파일(.json)을 선택해주세요.');
+                    return;
+                }
+
+                if (!confirm('경고: 현재 데이터가 복원 파일로 완전히 덮어쓰여집니다.\n정말 복원하시겠습니까?')) {
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const restoredDb = JSON.parse(e.target.result);
+                        
+                        // 최소한의 데이터 구조 검증
+                        if (!restoredDb.settings || !restoredDb.logs || !restoredDb.limitHistory) {
+                            throw new Error("파일 형식이 올바르지 않거나 데이터가 누락되었습니다.");
+                        }
+
+                        // 기존 로컬 스토리지 삭제 후 새 데이터 저장
+                        localStorage.setItem('rollingBudgetDB_v43', JSON.stringify(restoredDb));
+                        isDataDirty = false; // 복원 완료는 데이터가 깔끔한 상태임을 의미
+                        
+                        alert('데이터 복원이 완료되었습니다. 앱을 새로고침합니다.');
+                        location.reload();
+
+                    } catch (error) {
+                        alert("복원 실패: " + error.message);
+                        console.error("복원 실패", error);
+                    }
+                };
+                
+                reader.onerror = () => {
+                    alert("파일을 읽는 도중 오류가 발생했습니다.");
+                };
+
+                reader.readAsText(file);
+            });
+            
+            // --- 페이지 이탈 경고 기능 (beforeunload) 추가 ---
+            window.addEventListener('beforeunload', (event) => {
+                if (isDataDirty) {
+                    // 브라우저가 사용자에게 경고 팝업을 띄우도록 합니다.
+                    event.preventDefault(); 
+                    event.returnValue = ''; // Chromium 기반 브라우저용
+                    return '변경 내용이 저장되지 않았습니다. 백업 없이 페이지를 떠나시겠습니까?'; // Firefox/Safari 용
+                }
+            });
+            // ---------------------------------------------------
+            
+            // --- Service Worker 등록 로직 (PWA 활성화) 추가 ---
+            if ('serviceWorker' in navigator) {
+              window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js')
+                  .then(registration => {
+                    console.log('Service Worker registered: ', registration);
+                  })
+                  .catch(error => {
+                    console.log('Service Worker registration failed: ', error);
+                  });
+              });
+            }
+            // ---------------------------------------------------
+
+
+            loadData();
+        }); 
+    </script>
+</body>
+</html>
