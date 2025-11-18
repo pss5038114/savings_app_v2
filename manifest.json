@@ -1,22 +1,26 @@
+// manifest.json 파일
+
 {
   "name": "일일 예산 대시보드",
   "short_name": "예산 대시보드",
   "description": "가볍고 강력한 개인 예산 및 지출 관리 앱",
-  "start_url": "/savings_app_v2/stable_version_5.html", // 경로를 명확히 지정
+  // 🔽 수정: start_url에 저장소 경로 추가
+  "start_url": "/savings_app_v2/stable_version_5.html", 
   "display": "standalone",
   "background_color": "#121212",
   "theme_color": "#e0e0e0",
   "icons": [
     {
-      "src": "/icons/icon-192x192.png",
+      // 🔽 수정: 아이콘 경로에 저장소 경로 추가
+      "src": "/savings_app_v2/icons/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/icons/icon-512x512.png",
+      // 🔽 수정: 아이콘 경로에 저장소 경로 추가
+      "src": "/savings_app_v2/icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
   ]
-
 }
